@@ -159,3 +159,7 @@ Every signed-in page inherits from `AppPageModel`. It looks up the current emplo
 - ClosedXML for Excel export
 - Bootstrap 5 and a custom stylesheet
 - Plus Jakarta Sans from Google Fonts
+
+## License
+
+Released under the [MIT License](LICENSE).
