@@ -1,0 +1,19 @@
+## .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.log
+*.nupkg
+.idea/
+.vscode/
+
+## OS
+Thumbs.db
+.DS_Store
+
+## Claude
+.claude/
+CLAUDE.md
+CLAUDE.local.md

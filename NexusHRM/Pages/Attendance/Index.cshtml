@@ -1,0 +1,102 @@
+@page
+@model NexusHRM.Pages.Attendance.IndexModel
+@{
+    ViewData["Title"] = "Attendance";
+    var my = Model.MyRecord;
+}
+
+<div class="card flex-between" style="margin-bottom:16px">
+    <div>
+        <div class="fw-bold">
+            @if (my?.Status == "On Leave")
+            {
+                <text>You are on approved leave today</text>
+            }
+            else if (my?.ClockIn != null)
+            {
+                @($"Clocked in at {my.ClockIn}")
+                @if (my.ClockOut != null)
+                {
+                    @($", out at {my.ClockOut}")
+                }
+                else
+                {
+                    <text>, currently active</text>
+                }
+            }
+            else
+            {
+                <text>You have not clocked in today</text>
+            }
+        </div>
+        <div class="muted small">Today, @Model.TodayLabel</div>
+    </div>
+    <div class="flex-cell gap-sm">
+        @if (my?.Status != "On Leave" && my?.ClockIn == null)
+        {
+            <form method="post">
+                <input type="hidden" name="action" value="clockIn" />
+                <button type="submit" class="btn-primary btn-sm">&#9201; Clock In</button>
+            </form>
+        }
+        @if (my?.ClockIn != null && my.ClockOut == null)
+        {
+            <form method="post">
+                <input type="hidden" name="action" value="clockOut" />
+                <button type="submit" class="btn-outline btn-sm">&#10005; Clock Out</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (Model.TeamView)
+{
+    <div class="toolbar" style="margin-bottom:16px">
+        <span class="muted small fw-bold">Date:</span>
+        @foreach (var d in Model.AvailableDates)
+        {
+            <a href="?date=@d" class="pill @(Model.SelectedDate == d ? "active" : "")">
+                @DateTime.Parse(d).ToString("ddd d MMM")
+            </a>
+        }
+    </div>
+}
+
+<div class="card p-0">
+    <table class="data-table">
+        <thead>
+            <tr>
+                @if (Model.TeamView) { <th>Employee</th> } else { <th>Date</th> }
+                <th>Clock In</th><th>Clock Out</th><th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.Records.Any())
+            {
+                <tr><td colspan="5" class="empty-state">No attendance records for this day.</td></tr>
+            }
+            @foreach (var a in Model.Records)
+            {
+                var emp = Model.GetEmployee(a.EmployeeId);
+                <tr>
+                    @if (Model.TeamView)
+                    {
+                        <td>
+                            <div class="flex-cell">
+                                <div class="avatar sm" style="background:@emp?.AvatarColor">@emp?.Initials</div>
+                                <strong class="small">@emp?.Name</strong>
+                            </div>
+                        </td>
+                    }
+                    else
+                    {
+                        <td class="small fw-bold">@a.Date.ToString("ddd d MMM yyyy")</td>
+                    }
+                    <td><span class="mono">@(a.ClockIn ?? "-")</span></td>
+                    <td><span class="mono">@(a.ClockOut ?? "-")</span></td>
+                    <td><span class="badge @a.Status.ToLower().Replace(" ","-")">@a.Status</span></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

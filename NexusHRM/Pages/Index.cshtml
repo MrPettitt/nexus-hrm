@@ -1,0 +1,79 @@
+@page
+@model NexusHRM.Pages.IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="page-intro">
+    <h1>@Model.Greeting</h1>
+    <p>@DateTime.Today.ToString("dddd, d MMMM yyyy")</p>
+</div>
+
+<div class="kpi-grid">
+    @foreach (var k in Model.KPIs)
+    {
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-label">@k.Label</span>
+                <div class="kpi-icon" style="background:@k.Color22;color:@k.Color">@Html.Raw(k.IconSvg)</div>
+            </div>
+            <div class="kpi-value">@k.Value</div>
+            @if (!string.IsNullOrEmpty(k.Sub))
+            {
+                <div class="kpi-sub">@k.Sub</div>
+            }
+        </div>
+    }
+</div>
+
+<div class="dash-grid">
+    <div class="card">
+        <div class="card-title">Recent Leave Requests</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Employee</th><th>Type</th><th>From</th><th>Days</th><th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.RecentLeave.Any())
+                {
+                    <tr><td colspan="5" class="empty-state">No leave requests yet.</td></tr>
+                }
+                @foreach (var l in Model.RecentLeave)
+                {
+                    var emp = Model.GetEmployee(l.EmployeeId);
+                    <tr>
+                        <td>
+                            <div class="flex-cell">
+                                <div class="avatar sm" style="background:@emp?.AvatarColor">@emp?.Initials</div>
+                                <strong>@emp?.Name</strong>
+                            </div>
+                        </td>
+                        <td class="muted">@l.LeaveType</td>
+                        <td class="muted small">@l.FromDate.ToString("d MMM yyyy")</td>
+                        <td><strong>@l.Days d</strong></td>
+                        <td><span class="badge @l.Status.ToLower().Replace(" ","-")">@l.Status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-title">@Model.PeopleTitle</div>
+        <div class="people-list">
+            @foreach (var e in Model.PeopleSnapshot)
+            {
+                <div class="person-row">
+                    <div class="avatar" style="background:@e.AvatarColor">@e.Initials</div>
+                    <div class="person-meta">
+                        <div class="person-name">@e.Name</div>
+                        <div class="person-dept muted small">@e.Department</div>
+                    </div>
+                    <span class="badge @e.Status.ToLower().Replace(" ","-")">@e.Status</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>

@@ -1,0 +1,189 @@
+@page
+@model NexusHRM.Pages.Messages.IndexModel
+@{
+    ViewData["Title"] = "Messages";
+}
+
+<div class="toolbar" style="margin-bottom:16px">
+    <!-- All roles can compose. HR sends to anyone, employees send to HR only -->
+    <button class="btn-primary btn-sm" onclick="document.getElementById('composeModal').style.display='flex'">
+        <svg width='12' height='12' fill='none' stroke='currentColor' stroke-width='2.5' viewBox='0 0 24 24'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+        Compose Message
+    </button>
+
+    <!-- Tab filter -->
+    <div class="filter-pills" style="margin-left:8px">
+        <a href="?tab=inbox"  class="pill @(Model.ActiveTab == "inbox"  ? "active" : "")">
+            Inbox @if (Model.UnreadCount > 0) { <span class="pill-count">(@Model.UnreadCount)</span> }
+        </a>
+        <a href="?tab=sent"   class="pill @(Model.ActiveTab == "sent"   ? "active" : "")">Sent</a>
+        @if (Model.UserRole == "HR")
+        {
+            <a href="?tab=all" class="pill @(Model.ActiveTab == "all" ? "active" : "")">All</a>
+        }
+    </div>
+
+    <div class="spacer"></div>
+    @if (Model.UnreadCount > 0 && Model.ActiveTab != "sent")
+    {
+        <form method="post">
+            <input type="hidden" name="action" value="markAllRead" />
+            <button type="submit" class="btn-outline btn-sm">Mark all as read</button>
+        </form>
+    }
+</div>
+
+@if (!Model.Messages.Any())
+{
+    <div class="card" style="text-align:center;padding:60px 20px;color:var(--mut)">
+        <div style="margin-bottom:12px;opacity:.4">
+            <svg width='40' height='40' fill='none' stroke='currentColor' stroke-width='1.5' viewBox='0 0 24 24'><path d='M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z'/><polyline points='22,6 12,13 2,6'/></svg>
+        </div>
+        No messages here yet.
+    </div>
+}
+else
+{
+    <div class="messages-list">
+        @foreach (var m in Model.Messages)
+        {
+            var sender   = Model.GetEmployee(m.FromId);
+            var recipient = m.ToId.HasValue ? Model.GetEmployee(m.ToId.Value) : null;
+            var isSent   = m.FromId == Model.CurrentUserId;
+            var isUnread = !isSent && !m.ReadBy.Contains(Model.CurrentUserId);
+            var isOpen   = Model.OpenMessageId == m.Id;
+
+            <div class="message-row @(isUnread ? "unread" : "") @(isOpen ? "open" : "")">
+                <button class="message-header" onclick="toggleMessage(@m.Id)">
+                    <div class="avatar sm" style="background:@(sender?.AvatarColor ?? "#ccc")">@(sender?.Initials ?? "?")</div>
+                    <div class="message-meta">
+                        <div class="message-from">
+                            @if (isSent)
+                            {
+                                <span class="muted">To: </span>@(recipient?.Name ?? "All Employees")
+                            }
+                            else
+                            {
+                                @(sender?.Name ?? "HR")
+                            }
+                            @if (m.ToId == null)
+                            {
+                                <span class="badge employee" style="margin-left:6px;font-size:10px">Broadcast</span>
+                            }
+                            else
+                            {
+                                <span class="badge manager" style="margin-left:6px;font-size:10px">Direct</span>
+                            }
+                        </div>
+                        <div class="message-subject @(isUnread ? "fw-bold" : "")">@m.Subject</div>
+                    </div>
+                    <div class="message-date muted small">@m.SentAt.ToString("d MMM yyyy · HH:mm")</div>
+                    @if (isUnread) { <span class="unread-dot"></span> }
+                    <svg class="message-chevron" width='14' height='14' fill='none' stroke='currentColor' stroke-width='2' viewBox='0 0 24 24'><polyline points='6 9 12 15 18 9'/></svg>
+                </button>
+
+                <div class="message-body" id="msg-body-@m.Id" style="display:@(isOpen ? "block" : "none")">
+                    <pre class="message-text">@m.Body</pre>
+                    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+                        @if (isUnread)
+                        {
+                            <form method="post" style="display:inline">
+                                <input type="hidden" name="action"    value="markRead" />
+                                <input type="hidden" name="messageId" value="@m.Id" />
+                                <button type="submit" class="btn-outline btn-sm">Mark as read</button>
+                            </form>
+                        }
+                        @if (Model.UserRole == "HR")
+                        {
+                            <form method="post" style="display:inline"
+                                  onsubmit="return confirm('Delete this message permanently?')">
+                                <input type="hidden" name="action"    value="delete" />
+                                <input type="hidden" name="messageId" value="@m.Id" />
+                                <button type="submit" class="btn-danger btn-sm">Delete</button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- ── Compose Modal ─────────────────────────────────────────────────────── -->
+<div id="composeModal" class="modal-backdrop" style="display:none">
+    <div class="modal-box" style="max-width:560px">
+        <div class="modal-header">
+            <h3>Compose Message</h3>
+            <button onclick="document.getElementById('composeModal').style.display='none'" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form method="post">
+                <input type="hidden" name="action" value="send" />
+
+                <div class="form-group">
+                    <label>To *</label>
+                    @if (Model.UserRole == "HR")
+                    {
+                        <!-- HR can message anyone or broadcast -->
+                        <select name="toId" class="form-control" required>
+                            <option value="0">All Employees (Broadcast)</option>
+                            @foreach (var e in Model.ComposeRecipients)
+                            {
+                                <option value="@e.Id">@e.Name, @e.Title</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <!-- Employees / Managers can only contact HR -->
+                        <select name="toId" class="form-control" required>
+                            @foreach (var e in Model.ComposeRecipients)
+                            {
+                                <option value="@e.Id">@e.Name, @e.Title (HR)</option>
+                            }
+                        </select>
+                        <div class="muted small" style="margin-top:5px">Messages go directly to the HR team.</div>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label>Subject *</label>
+                    <input type="text" name="subject" class="form-control" required
+                           placeholder="e.g. Question about my leave balance" maxlength="120" />
+                </div>
+
+                <div class="form-group">
+                    <label>Message *</label>
+                    <textarea name="body" class="form-control" rows="6" required
+                              placeholder="Write your message here…"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">
+                        <svg width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' viewBox='0 0 24 24'><line x1='22' y1='2' x2='11' y2='13'/><polygon points='22 2 15 22 11 13 2 9 22 2'/></svg>
+                        Send
+                    </button>
+                    <button type="button" class="btn-outline"
+                            onclick="document.getElementById('composeModal').style.display='none'">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+function toggleMessage(id) {
+    const body    = document.getElementById('msg-body-' + id);
+    const allBodies = document.querySelectorAll('.message-body');
+    const allRows   = document.querySelectorAll('.message-row');
+    const isOpen  = body.style.display !== 'none';
+    allBodies.forEach(b => b.style.display = 'none');
+    allRows.forEach(r => r.classList.remove('open'));
+    if (!isOpen) {
+        body.style.display = 'block';
+        body.closest('.message-row').classList.add('open');
+    }
+}
+</script>
+}

@@ -1,0 +1,172 @@
+@page
+@model NexusHRM.Pages.Payroll.IndexModel
+@{
+    ViewData["Title"] = "Payroll";
+    string Rand(decimal v) => "R " + v.ToString("N2");
+}
+
+@if (Model.IsHR)
+{
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-header"><span class="kpi-label">Gross Pay</span></div>
+            <div class="kpi-value">@Rand(Model.TotalGross)</div>
+            <div class="kpi-sub">@Model.Month, all employees</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header"><span class="kpi-label">Deductions</span></div>
+            <div class="kpi-value">@Rand(Model.TotalDeductions)</div>
+            <div class="kpi-sub">PAYE and UIF</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header"><span class="kpi-label">Net Pay</span></div>
+            <div class="kpi-value accent">@Rand(Model.TotalNet)</div>
+            <div class="kpi-sub">Paid out to employees</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header"><span class="kpi-label">Payments Released</span></div>
+            <div class="kpi-value">@Model.PaidCount <span class="kpi-unit">of @Model.Payroll.Count</span></div>
+            <div class="meter"><div class="meter-fill" style="width:@(Model.Payroll.Count == 0 ? 0 : Model.PaidCount * 100 / Model.Payroll.Count)%;background:var(--ok)"></div></div>
+            <div class="kpi-sub">@(Model.Payroll.Count - Model.PaidCount) still pending</div>
+        </div>
+    </div>
+
+    <div class="toolbar" style="justify-content:flex-end;margin-bottom:16px">
+        <a href="?export=xlsx" class="btn-outline btn-sm">
+            <svg width='12' height='12' fill='none' stroke='currentColor' stroke-width='2' viewBox='0 0 24 24'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>
+            Export Excel
+        </a>
+        <form method="post" style="display:inline">
+            <input type="hidden" name="action" value="runAll" />
+            <button type="submit" class="btn-primary btn-sm">
+                <svg width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' viewBox='0 0 24 24'><path d='M20 12V8H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14v4'/><path d='M4 6v12a2 2 0 0 0 2 2h14v-4'/><circle cx='16' cy='14' r='1' fill='currentColor'/></svg>
+                Run @Model.Month Payroll
+            </button>
+        </form>
+    </div>
+}
+
+<div class="card p-0">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Employee</th><th>Basic</th><th>Allowances</th>
+                <th>UIF</th><th>PAYE Tax</th><th>Net Pay</th><th>Status</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.Payroll.Any())
+            {
+                <tr><td colspan="8" class="empty-state">No payroll records for @Model.Month.</td></tr>
+            }
+            @foreach (var p in Model.Payroll)
+            {
+                var emp = Model.GetEmployee(p.EmployeeId);
+                <tr>
+                    <td>
+                        <div class="flex-cell">
+                            <div class="avatar" style="background:@emp?.AvatarColor">@emp?.Initials</div>
+                            <div>
+                                <div class="fw-bold small">@emp?.Name</div>
+                                <div class="muted small">@emp?.Department</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="small">R @p.BasicSalary.ToString("N0")</td>
+                    <td class="small ok">+R @p.Allowances.ToString("N0")</td>
+                    <td class="small err">-R @p.UIF.ToString("N0")</td>
+                    <td class="small err">-R @p.PAYE.ToString("N0")</td>
+                    <td><strong class="accent">R @p.NetPay.ToString("N0")</strong></td>
+                    <td><span class="badge @(p.IsPaid ? "approved" : "pending")">@(p.IsPaid ? "Paid" : "Pending")</span></td>
+                    <td>
+                        <div class="flex-cell gap-sm">
+                            <button class="btn-outline btn-sm"
+                                    data-name="@emp?.Name"
+                                    data-title="@emp?.Title"
+                                    data-month="@p.Month"
+                                    data-basic="@p.BasicSalary.ToString("N2")"
+                                    data-allow="@p.Allowances.ToString("N2")"
+                                    data-gross="@p.Gross.ToString("N2")"
+                                    data-uif="@p.UIF.ToString("N2")"
+                                    data-paye="@p.PAYE.ToString("N2")"
+                                    data-net="@p.NetPay.ToString("N2")"
+                                    data-paid="@(p.IsPaid ? "Paid" : "Pending")"
+                                    onclick="openPayslip(this)">
+                                Payslip
+                            </button>
+                            @if (Model.IsHR && !p.IsPaid)
+                            {
+                                <form method="post" style="display:inline">
+                                    <input type="hidden" name="action"     value="payOne" />
+                                    <input type="hidden" name="employeeId" value="@p.EmployeeId" />
+                                    <button type="submit" class="btn-success btn-sm">&#10003; Pay</button>
+                                </form>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<p class="muted small footnote">
+    Illustrative figures. PAYE uses the 2025/26 South African tax tables (primary rebate only, no medical credits).
+    UIF is 1% of gross, capped at R 17,712 of monthly remuneration.
+</p>
+
+<!-- Payslip Modal -->
+<div id="payslipModal" class="modal-backdrop" style="display:none">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="ps-title">Payslip</h3>
+            <button onclick="document.getElementById('payslipModal').style.display='none'" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="payslip-hero">
+                <div>
+                    <div class="payslip-co">Nexus HRM</div>
+                    <div id="ps-name" class="profile-name"></div>
+                    <div id="ps-job" class="muted small"></div>
+                </div>
+                <div class="text-right">
+                    <div class="muted small">Pay period</div>
+                    <div id="ps-month" class="fw-bold"></div>
+                </div>
+            </div>
+            <div id="ps-fields" class="field-list"></div>
+            <div class="payslip-net">
+                <span>Net Pay</span>
+                <span id="ps-net" class="accent fw-bold"></span>
+            </div>
+            <span id="ps-status" class="badge"></span>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+function openPayslip(btn) {
+    const d = btn.dataset;
+    document.getElementById('ps-title').textContent = 'Payslip for ' + d.month;
+    document.getElementById('ps-name').textContent  = d.name;
+    document.getElementById('ps-job').textContent   = d.title;
+    document.getElementById('ps-month').textContent = d.month;
+    const fields = [
+        ['Basic Salary',     'R '  + d.basic, 'normal'],
+        ['Allowances',       '+R ' + d.allow, 'ok'],
+        ['Gross Pay',        'R '  + d.gross, 'normal'],
+        ['UIF Contribution', '-R ' + d.uif,   'err'],
+        ['PAYE Tax',         '-R ' + d.paye,  'err'],
+    ];
+    document.getElementById('ps-fields').innerHTML = fields.map(([k, v, cls]) =>
+        `<div class="field-row"><span class="muted">${k}</span><strong class="${cls}">${v}</strong></div>`
+    ).join('');
+    document.getElementById('ps-net').textContent = 'R ' + d.net;
+    const sb = document.getElementById('ps-status');
+    sb.textContent = d.paid;
+    sb.className   = 'badge ' + (d.paid === 'Paid' ? 'approved' : 'pending');
+    document.getElementById('payslipModal').style.display = 'flex';
+}
+</script>
+}

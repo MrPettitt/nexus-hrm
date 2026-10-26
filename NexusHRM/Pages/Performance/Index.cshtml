@@ -1,0 +1,267 @@
+@page
+@model NexusHRM.Pages.Performance.IndexModel
+@{
+    ViewData["Title"] = "Performance Reviews";
+}
+
+<div class="toolbar" style="justify-content:flex-end;margin-bottom:16px">
+    @if (Model.CanReview)
+    {
+        <button class="btn-primary btn-sm"
+                onclick="document.getElementById('newReviewModal').style.display='flex'">
+            <svg width='12' height='12' fill='none' stroke='currentColor' stroke-width='2.5' viewBox='0 0 24 24'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+            New Review
+        </button>
+    }
+</div>
+
+@if (!Model.Reviews.Any())
+{
+    <div class="card" style="text-align:center;padding:60px 20px;color:var(--mut)">
+        No performance reviews on record yet.
+    </div>
+}
+
+<div class="review-grid">
+    @foreach (var r in Model.Reviews)
+    {
+        var subj = Model.GetEmployee(r.EmployeeId);
+        var revr = Model.GetEmployee(r.ReviewerId);
+
+        @* All review data goes in data-* attributes: no inline scripts, no escaping issues *@
+        <div class="review-card"
+             data-id="@r.Id"
+             data-name="@(subj?.Name ?? "")"
+             data-initials="@(subj?.Initials ?? "")"
+             data-color="@(subj?.AvatarColor ?? "#ccc")"
+             data-title="@(subj?.Title ?? "")"
+             data-period="@r.Period"
+             data-reviewer="@(revr?.Name ?? "")"
+             data-overall="@r.OverallRating"
+             data-quality="@r.QualityRating"
+             data-communication="@r.CommunicationRating"
+             data-teamwork="@r.TeamworkRating"
+             data-initiative="@r.InitiativeRating"
+             data-notes="@r.Notes"
+             onclick="openReview(this)">
+            <div class="review-card-header">
+                <div class="flex-cell">
+                    <div class="avatar" style="background:@(subj?.AvatarColor ?? "#ccc")">@(subj?.Initials ?? "?")</div>
+                    <div>
+                        <div class="fw-bold small">@(subj?.Name ?? "Unknown")</div>
+                        <div class="muted small">@(subj?.Title ?? "")</div>
+                    </div>
+                </div>
+                <div class="stars">
+                    @for (int i = 1; i <= 5; i++)
+                    {
+                        <svg width='13' height='13' viewBox='0 0 24 24'
+                             fill='@(i <= r.OverallRating ? "#F59E0B" : "none")'
+                             stroke='@(i <= r.OverallRating ? "#F59E0B" : "#D1D5DB")' stroke-width='2'>
+                            <polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/>
+                        </svg>
+                    }
+                </div>
+            </div>
+            <div class="muted small" style="margin-bottom:8px">@r.Period · @(revr?.Name ?? "")</div>
+            <p class="review-notes">@r.Notes</p>
+        </div>
+    }
+</div>
+
+<!-- ── Review Detail Modal ─────────────────────────────────────────────── -->
+<div id="reviewModal" class="modal-backdrop" style="display:none">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Performance Review</h3>
+            <button onclick="document.getElementById('reviewModal').style.display='none'" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="profile-hero" style="margin-bottom:16px">
+                <div id="rv-avatar" class="avatar xl"></div>
+                <div>
+                    <div id="rv-name"  class="profile-name"></div>
+                    <div id="rv-meta"  class="muted small" style="margin-top:3px"></div>
+                </div>
+            </div>
+            <div class="overall-row" style="margin-bottom:18px">
+                <span class="muted small fw-bold" style="text-transform:uppercase;letter-spacing:.05em">Overall</span>
+                <div id="rv-stars" class="stars"></div>
+                <span id="rv-score" class="fw-bold" style="font-size:18px"></span>
+            </div>
+            <div class="cat-section">
+                <div class="muted small fw-bold" style="margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Category Breakdown</div>
+                <div id="rv-cats"></div>
+            </div>
+            <div class="notes-box">
+                <div class="muted small fw-bold" style="margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Manager Notes</div>
+                <p id="rv-notes" style="font-size:13px;line-height:1.75;margin:0"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── New Review Modal (Manager / HR) ────────────────────────────────── -->
+@if (Model.CanReview)
+{
+    <div id="newReviewModal" class="modal-backdrop" style="display:none">
+        <div class="modal-box" style="max-width:560px">
+            <div class="modal-header">
+                <h3>New Performance Review</h3>
+                <button onclick="document.getElementById('newReviewModal').style.display='none'" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form method="post">
+                    <input type="hidden" name="action" value="add" />
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Employee *</label>
+                            <select name="employeeId" class="form-control" required>
+                                <option value="">Select employee…</option>
+                                @foreach (var e in Model.ReviewableEmployees)
+                                {
+                                    <option value="@e.Id">@e.Name, @e.Title</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Review Period *</label>
+                            <input type="text" name="period" class="form-control" required
+                                   value="@Model.DefaultPeriod" maxlength="20" />
+                        </div>
+                    </div>
+
+                    @{
+                        var cats = new[] { "Quality", "Communication", "Teamwork", "Initiative" };
+                    }
+                    @foreach (var cat in cats)
+                    {
+                        <div class="form-group">
+                            <label>@cat *</label>
+                            <div class="rating-input" data-name="@cat.ToLower()Rating">
+                                @for (int s = 1; s <= 5; s++)
+                                {
+                                    <label class="star-label">
+                                        <input type="radio" name="@(cat.ToLower())Rating"
+                                               value="@s" required @(s == 3 ? "checked" : "") />
+                                        <svg viewBox='0 0 24 24' width='22' height='22'
+                                             fill='@(s <= 3 ? "#F59E0B" : "none")'
+                                             stroke='@(s <= 3 ? "#F59E0B" : "#D1D5DB")' stroke-width='2'>
+                                            <polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/>
+                                        </svg>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div class="form-group">
+                        <label>Manager Notes *</label>
+                        <textarea name="notes" class="form-control" rows="4" required
+                                  placeholder="Summarise the employee's performance this period"></textarea>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="submit" class="btn-primary">Save Review</button>
+                        <button type="button" class="btn-outline"
+                                onclick="document.getElementById('newReviewModal').style.display='none'">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+<script>
+// ── Open review detail modal from data-* attributes ───────────────────────
+function openReview(card) {
+    const d = card.dataset;
+
+    document.getElementById('rv-avatar').textContent      = d.initials;
+    document.getElementById('rv-avatar').style.background = d.color;
+    document.getElementById('rv-name').textContent        = d.name;
+    document.getElementById('rv-meta').textContent        = d.period + ' · Reviewed by ' + d.reviewer;
+
+    const overall = parseInt(d.overall, 10);
+    document.getElementById('rv-score').innerHTML =
+        overall + '<span style="color:#6B7280;font-size:13px;font-weight:400"> / 5</span>';
+
+    // Stars
+    document.getElementById('rv-stars').innerHTML = [1,2,3,4,5].map(i =>
+        `<svg width="14" height="14" viewBox="0 0 24 24"
+              fill="${i<=overall?'#F59E0B':'none'}"
+              stroke="${i<=overall?'#F59E0B':'#D1D5DB'}" stroke-width="2">
+           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+         </svg>`
+    ).join('');
+
+    // Category bars
+    const cats = [
+        ['Quality',       parseInt(d.quality,       10)],
+        ['Communication', parseInt(d.communication, 10)],
+        ['Teamwork',      parseInt(d.teamwork,       10)],
+        ['Initiative',    parseInt(d.initiative,     10)],
+    ];
+    document.getElementById('rv-cats').innerHTML = cats.map(([name, val]) => {
+        const barColor = val >= 4 ? '#10B981' : val >= 3 ? '#F59E0B' : '#EF4444';
+        const stars    = [1,2,3,4,5].map(i =>
+            `<svg width="12" height="12" viewBox="0 0 24 24"
+                  fill="${i<=val?'#F59E0B':'none'}"
+                  stroke="${i<=val?'#F59E0B':'#D1D5DB'}" stroke-width="2">
+               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+             </svg>`
+        ).join('');
+        return `<div class="cat-row">
+            <span style="font-size:13px">${name}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:80px;height:4px;background:#E4E7ED;border-radius:2px;overflow:hidden">
+                    <div style="width:${val/5*100}%;height:100%;background:${barColor};border-radius:2px"></div>
+                </div>
+                <div style="display:flex;gap:2px">${stars}</div>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Notes are set as plain text
+    document.getElementById('rv-notes').textContent = d.notes;
+
+    document.getElementById('reviewModal').style.display = 'flex';
+}
+
+// ── Live star highlighting in New Review form ─────────────────────────────
+document.querySelectorAll('.rating-input').forEach(group => {
+    const labels = group.querySelectorAll('.star-label');
+    group.addEventListener('change', () => {
+        const checked = parseInt(group.querySelector('input:checked')?.value ?? '0', 10);
+        labels.forEach((lbl, idx) => {
+            const svg = lbl.querySelector('svg');
+            const lit = idx < checked;
+            svg.setAttribute('fill',   lit ? '#F59E0B' : 'none');
+            svg.setAttribute('stroke', lit ? '#F59E0B' : '#D1D5DB');
+        });
+    });
+    // Hover preview
+    labels.forEach((lbl, idx) => {
+        lbl.addEventListener('mouseenter', () => {
+            labels.forEach((l2, i2) => {
+                const svg = l2.querySelector('svg');
+                const lit = i2 <= idx;
+                svg.setAttribute('fill',   lit ? '#F59E0B' : 'none');
+                svg.setAttribute('stroke', lit ? '#F59E0B' : '#D1D5DB');
+            });
+        });
+        lbl.addEventListener('mouseleave', () => {
+            const checked = parseInt(group.querySelector('input:checked')?.value ?? '0', 10);
+            labels.forEach((l2, i2) => {
+                const svg = l2.querySelector('svg');
+                const lit = i2 < checked;
+                svg.setAttribute('fill',   lit ? '#F59E0B' : 'none');
+                svg.setAttribute('stroke', lit ? '#F59E0B' : '#D1D5DB');
+            });
+        });
+    });
+});
+</script>
+}

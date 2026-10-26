@@ -1,0 +1,272 @@
+@page
+@model NexusHRM.Pages.Employees.IndexModel
+@{
+    ViewData["Title"] = "Employees";
+    var avatarColors = new[] { "#5B5BD6","#0EA5E9","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#14B8A6","#F97316","#6366F1" };
+}
+
+<div class="toolbar">
+    <form method="get" class="search-form">
+        <div class="search-wrap">
+            <span class="search-icon">
+                <svg width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' viewBox='0 0 24 24'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>
+            </span>
+            <input name="q" value="@Model.Query" type="text" placeholder="Search employees" class="search-input" />
+        </div>
+        <div class="filter-pills">
+            @foreach (var d in Model.Departments)
+            {
+                <a href="?dept=@d&q=@Model.Query" class="pill @(Model.SelectedDept == d ? "active" : "")">@d</a>
+            }
+        </div>
+        <button type="submit" class="btn-ghost">Search</button>
+    </form>
+    @if (Model.UserRole == "HR")
+    {
+        <button class="btn-primary btn-sm" onclick="document.getElementById('addModal').style.display='flex'">
+            <svg width='12' height='12' fill='none' stroke='currentColor' stroke-width='2.5' viewBox='0 0 24 24'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+            Add Employee
+        </button>
+    }
+</div>
+
+<div class="card p-0">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Employee</th><th>Department</th><th>Title</th>
+                <th>Role</th><th>Status</th><th>Joined</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in Model.Employees)
+            {
+                <tr class="@(e.IsOffboarded ? "row-muted" : "")">
+                    <td>
+                        <div class="flex-cell">
+                            <div class="avatar" style="background:@e.AvatarColor">@e.Initials</div>
+                            <div>
+                                <div class="fw-bold">@e.Name</div>
+                                <div class="muted small">@e.Email</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="muted">@e.Department</td>
+                    <td class="muted">@e.Title</td>
+                    <td><span class="badge @e.Role.ToLower()">@e.Role</span></td>
+                    <td><span class="badge @e.Status.ToLower().Replace(" ","-")">@e.Status</span></td>
+                    <td class="muted small">@e.Joined.ToString("d MMM yyyy")</td>
+                    <td>
+                        <button class="btn-outline btn-sm"
+                                data-id="@e.Id"
+                                data-name="@e.Name"
+                                data-initials="@e.Initials"
+                                data-color="@e.AvatarColor"
+                                data-title="@e.Title"
+                                data-email="@e.Email"
+                                data-phone="@e.Phone"
+                                data-dept="@e.Department"
+                                data-mgr="@Model.GetManagerName(e.ManagerId)"
+                                data-joined="@e.Joined.ToString("d MMM yyyy")"
+                                data-salary="@(Model.UserRole == "HR" || e.Id == Model.CurrentUserId ? "R " + e.Salary.ToString("N0") + " / yr" : "")"
+                                data-self="@(e.Id == Model.CurrentUserId ? "1" : "0")"
+                                data-role="@e.Role"
+                                data-status="@e.Status"
+                                onclick="openProfile(this)">
+                            View
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- ── View / Offboard Profile Modal ──────────────────────────────────── -->
+<div id="profileModal" class="modal-backdrop" style="display:none">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Employee Profile</h3>
+            <button onclick="closeModal('profileModal')" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="profile-hero">
+                <div id="pm-avatar" class="avatar xl"></div>
+                <div>
+                    <div id="pm-name" class="profile-name"></div>
+                    <div id="pm-job"  class="muted" style="margin-top:3px"></div>
+                    <div class="badge-row" style="margin-top:8px">
+                        <span id="pm-role-badge"   class="badge"></span>
+                        <span id="pm-status-badge" class="badge"></span>
+                    </div>
+                </div>
+            </div>
+            <div id="pm-fields" class="field-list"></div>
+
+            @if (Model.UserRole == "HR")
+            {
+                <form method="post" id="offboardForm" style="margin-top:18px"
+                      onsubmit="return confirm('Offboard ' + document.getElementById('pm-name').textContent + '? They will lose access and be marked as Offboarded.')">
+                    <input type="hidden" name="action"     value="offboard" />
+                    <input type="hidden" name="employeeId" id="offboardEmpId" value="" />
+                    <button type="submit" class="btn-danger btn-sm">Offboard Employee</button>
+                </form>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- ── Add New Employee Modal ─────────────────────────────────────────── -->
+<div id="addModal" class="modal-backdrop" style="display:none">
+    <div class="modal-box" style="max-width:580px">
+        <div class="modal-header">
+            <h3>Add New Employee</h3>
+            <button onclick="closeModal('addModal')" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form method="post">
+                <input type="hidden" name="action" value="add" />
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name *</label>
+                        <input type="text" name="name" class="form-control" required placeholder="e.g. Jane Smith" />
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address *</label>
+                        <input type="email" name="email" class="form-control" required placeholder="jane@nexus.io" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Job Title *</label>
+                        <input type="text" name="title" class="form-control" required placeholder="e.g. Software Engineer" />
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" name="phone" class="form-control" placeholder="+27 71 000 0000" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Department *</label>
+                        <select name="department" class="form-control" required id="deptSelect">
+                            <option value="">Select…</option>
+                            @foreach (var d in Model.Departments.Where(d => d != "All"))
+                            {
+                                <option>@d</option>
+                            }
+                            <option value="__new__">+ New Department</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="newDeptGroup" style="display:none">
+                        <label>New Department Name</label>
+                        <input type="text" name="newDepartment" id="newDeptInput" class="form-control" placeholder="e.g. Marketing" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Role *</label>
+                        <select name="role" class="form-control" required>
+                            <option value="Employee">Employee</option>
+                            <option value="Manager">Manager</option>
+                            <option value="HR">HR</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Annual Salary (ZAR) *</label>
+                        <input type="number" name="salary" class="form-control" required
+                               placeholder="60000" min="0" step="1000" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Reports To</label>
+                        <select name="managerId" class="form-control">
+                            <option value="">None</option>
+                            @foreach (var m in Model.Managers)
+                            {
+                                <option value="@m.Id">@m.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Start Date *</label>
+                        <input type="date" name="joined" class="form-control" required
+                               value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Avatar Colour</label>
+                    <div class="color-picker">
+                        @foreach (var c in avatarColors)
+                        {
+                            <label class="color-swatch">
+                                <input type="radio" name="avatarColor" value="@c" @(c == avatarColors[0] ? "checked" : "") />
+                                <span style="background:@c"></span>
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Create Employee</button>
+                    <button type="button" class="btn-outline" onclick="closeModal('addModal')">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+function openProfile(btn) {
+    const d = btn.dataset;
+    document.getElementById('pm-avatar').textContent       = d.initials;
+    document.getElementById('pm-avatar').style.background  = d.color;
+    document.getElementById('pm-name').textContent         = d.name;
+    document.getElementById('pm-job').textContent          = d.title;
+    document.getElementById('pm-role-badge').textContent   = d.role;
+    document.getElementById('pm-role-badge').className     = 'badge ' + d.role.toLowerCase();
+    document.getElementById('pm-status-badge').textContent = d.status;
+    document.getElementById('pm-status-badge').className   = 'badge ' + d.status.toLowerCase().replace(' ', '-');
+
+    const fields = [
+        ['Email',      d.email],
+        ['Phone',      d.phone  || 'Not provided'],
+        ['Department', d.dept],
+        ['Reports to', d.mgr],
+        ['Joined',     d.joined],
+        ['Salary',     d.salary || 'Confidential'],
+    ];
+    document.getElementById('pm-fields').innerHTML = fields
+        .map(([k, v]) => `<div class="field-row"><span class="muted">${k}</span><strong>${v}</strong></div>`)
+        .join('');
+
+    const offInput = document.getElementById('offboardEmpId');
+    if (offInput) offInput.value = d.id;
+    const offForm = document.getElementById('offboardForm');
+    if (offForm) offForm.style.display = (d.status === 'Offboarded' || d.self === '1') ? 'none' : 'block';
+
+    document.getElementById('profileModal').style.display = 'flex';
+}
+
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+
+// Show/hide custom department input
+document.getElementById('deptSelect')?.addEventListener('change', function () {
+    const grp   = document.getElementById('newDeptGroup');
+    const input = document.getElementById('newDeptInput');
+    const show  = this.value === '__new__';
+    grp.style.display   = show ? 'block' : 'none';
+    input.required      = show;
+});
+</script>
+}

@@ -1,0 +1,10 @@
+@page
+@model NexusHRM.Pages.ErrorModel
+@{
+    ViewData["Title"] = "Error";
+}
+<div style="padding:40px;text-align:center">
+    <h2>Something went wrong</h2>
+    <p>Request ID: <code>@Model.RequestId</code></p>
+    <a href="/" style="color:#5B5BD6">Back to Dashboard</a>
+</div>

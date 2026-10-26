@@ -1,0 +1,95 @@
+@page
+@model NexusHRM.Pages.Account.LoginModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Sign In";
+}
+
+<div class="login-page">
+    <div class="login-card">
+
+        <div class="login-logo">
+            <div class="logo-mark">N</div>
+            <h1>Nexus HRM</h1>
+            <p>Sign in to your account</p>
+        </div>
+
+        @if (Model.ErrorMessage != null)
+        {
+            <div class="login-error">@Model.ErrorMessage</div>
+        }
+
+        <form method="post" id="loginForm">
+            <input type="hidden" name="loginType" value="credentials" />
+
+            <div class="form-group" style="margin-bottom:14px">
+                <label class="login-label" for="email">Email Address</label>
+                <input type="email" name="email" id="email" class="form-control"
+                       required autocomplete="email"
+                       placeholder="you@nexus.io"
+                       value="@Model.LastEmail" />
+            </div>
+
+            <div class="form-group" style="margin-bottom:20px">
+                <label class="login-label" for="pwField">Password</label>
+                <div style="position:relative">
+                    <input type="password" name="password" id="pwField" class="form-control"
+                           required autocomplete="current-password"
+                           placeholder="Enter your password" />
+                    <button type="button" id="pwToggle" class="pw-toggle" aria-label="Show or hide password" onclick="togglePw()">
+                        <svg id="eyeIcon" width='15' height='15' fill='none' stroke='currentColor' stroke-width='2' viewBox='0 0 24 24'>
+                            <path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'/><circle cx='12' cy='12' r='3'/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-primary" style="width:100%;justify-content:center;padding:11px">
+                Sign In
+            </button>
+        </form>
+
+        <div class="demo-divider"><span>Demo access</span></div>
+
+        <p class="muted small" style="margin:0 0 12px;text-align:center">
+            This is a demo. Choose a persona to explore the app with that role.
+        </p>
+
+        <div class="persona-list">
+            @foreach (var p in Model.Personas)
+            {
+                <form method="post">
+                    <input type="hidden" name="loginType"  value="demo" />
+                    <input type="hidden" name="employeeId" value="@p.Employee.Id" />
+                    <button type="submit" class="persona-btn">
+                        <div class="avatar" style="background:@p.Employee.AvatarColor">@p.Employee.Initials</div>
+                        <div class="persona-info">
+                            <div class="persona-name">@p.Employee.Name</div>
+                            <div class="persona-role @p.Employee.Role.ToLower()">@p.Employee.Role</div>
+                            <div class="persona-desc">@p.Description</div>
+                        </div>
+                        <svg width='14' height='14' fill='none' stroke='currentColor' stroke-width='2' viewBox='0 0 24 24'><polyline points='9 18 15 12 9 6'/></svg>
+                    </button>
+                </form>
+            }
+        </div>
+
+        <p class="login-footer">Nexus HRM &middot; ASP.NET Core 8 Razor Pages &middot; Demo v0.6</p>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+function togglePw() {
+    const f = document.getElementById('pwField');
+    const icon = document.getElementById('eyeIcon');
+    if (f.type === 'password') {
+        f.type = 'text';
+        icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+    } else {
+        f.type = 'password';
+        icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    }
+}
+</script>
+}

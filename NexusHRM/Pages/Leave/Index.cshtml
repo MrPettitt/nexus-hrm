@@ -1,0 +1,173 @@
+@page
+@model NexusHRM.Pages.Leave.IndexModel
+@{
+    ViewData["Title"] = "Leave Management";
+    var colors = new Dictionary<string, string> { ["Annual"] = "#5B5BD6", ["Sick"] = "#EF4444", ["Personal"] = "#F59E0B" };
+}
+
+<div class="kpi-grid">
+    @foreach (var b in Model.Balances)
+    {
+        var pct = b.Entitlement == 0 ? 0 : (int)Math.Round(b.Remaining * 100.0 / b.Entitlement);
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-label">@b.Type Leave</span>
+            </div>
+            <div class="kpi-value">@b.Remaining <span class="kpi-unit">days left</span></div>
+            <div class="meter"><div class="meter-fill" style="width:@pct%;background:@colors[b.Type]"></div></div>
+            <div class="kpi-sub">@b.Used used, @b.Pending pending, of @b.Entitlement this year</div>
+        </div>
+    }
+    <div class="kpi-card">
+        <div class="kpi-header">
+            <span class="kpi-label">My Pending Requests</span>
+        </div>
+        <div class="kpi-value">@Model.AllLeave.Count(l => l.EmployeeId == Model.UserId && l.Status == "Pending")</div>
+        <div class="kpi-sub">Waiting for a decision</div>
+    </div>
+</div>
+
+<div class="toolbar">
+    @if (Model.UserRole != "Employee")
+    {
+        <div class="filter-pills">
+            @foreach (var f in new[] { "All", "Pending", "Approved", "Rejected" })
+            {
+                var count = f == "All" ? Model.AllLeave.Count : Model.AllLeave.Count(l => l.Status == f);
+                <a href="?filter=@f" class="pill @(Model.Filter == f ? "active" : "")">
+                    @f <span class="pill-count">(@count)</span>
+                </a>
+            }
+        </div>
+    }
+    <div class="spacer"></div>
+    <button class="btn-primary btn-sm" onclick="document.getElementById('applyModal').style.display='flex'">
+        <svg width='12' height='12' fill='none' stroke='currentColor' stroke-width='2.5' viewBox='0 0 24 24'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+        Apply for Leave
+    </button>
+</div>
+
+<div class="card p-0">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Employee</th><th>Type</th><th>Period</th><th>Days</th>
+                <th>Reason</th><th>Applied</th><th>Status</th>
+                @if (Model.ShowActions) { <th>Actions</th> }
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.Leave.Any())
+            {
+                <tr><td colspan="8" class="empty-state">No leave requests found.</td></tr>
+            }
+            @foreach (var l in Model.Leave)
+            {
+                var emp = Model.GetEmployee(l.EmployeeId);
+                <tr>
+                    <td>
+                        <div class="flex-cell">
+                            <div class="avatar sm" style="background:@emp?.AvatarColor">@emp?.Initials</div>
+                            <strong class="small">@emp?.Name</strong>
+                        </div>
+                    </td>
+                    <td class="small">@l.LeaveType</td>
+                    <td class="muted small nowrap">@(l.FromDate == l.ToDate ? l.FromDate.ToString("d MMM yyyy") : l.FromDate.ToString("d MMM") + " to " + l.ToDate.ToString("d MMM yyyy"))</td>
+                    <td><strong>@l.Days d</strong></td>
+                    <td class="muted small truncate" title="@l.Reason">@l.Reason</td>
+                    <td class="muted small">@l.AppliedDate.ToString("d MMM yyyy")</td>
+                    <td><span class="badge @l.Status.ToLower()">@l.Status</span></td>
+                    @if (Model.ShowActions)
+                    {
+                        <td class="nowrap">
+                            @if (Model.CanDecide(l))
+                            {
+                                <form method="post" style="display:inline">
+                                    <input type="hidden" name="leaveId" value="@l.Id" />
+                                    <input type="hidden" name="action"  value="approve" />
+                                    <button type="submit" class="btn-success btn-sm">&#10003; Approve</button>
+                                </form>
+                                <form method="post" style="display:inline;margin-left:4px">
+                                    <input type="hidden" name="leaveId" value="@l.Id" />
+                                    <input type="hidden" name="action"  value="reject" />
+                                    <button type="submit" class="btn-danger btn-sm">&#10005; Reject</button>
+                                </form>
+                            }
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- Apply Modal -->
+<div id="applyModal" class="modal-backdrop" style="display:none">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Apply for Leave</h3>
+            <button onclick="document.getElementById('applyModal').style.display='none'" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form method="post">
+                <div class="form-group">
+                    <label>Leave Type</label>
+                    <select name="leaveType" class="form-control">
+                        <option>Annual</option><option>Sick</option><option>Personal</option><option>Unpaid</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>From Date</label>
+                        <input type="date" name="fromDate" id="fromDate" class="form-control" required />
+                    </div>
+                    <div class="form-group">
+                        <label>To Date</label>
+                        <input type="date" name="toDate" id="toDate" class="form-control" required />
+                    </div>
+                </div>
+                <div id="dayPreview" class="muted small" style="margin:-4px 0 14px"></div>
+                <div class="form-group">
+                    <label>Reason</label>
+                    <textarea name="reason" class="form-control" rows="3" required maxlength="300"></textarea>
+                </div>
+                <input type="hidden" name="action" value="apply" />
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Submit Request</button>
+                    <button type="button" class="btn-outline" onclick="document.getElementById('applyModal').style.display='none'">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const from = document.getElementById('fromDate');
+    const to   = document.getElementById('toDate');
+    const out  = document.getElementById('dayPreview');
+
+    function workdays(a, b) {
+        let n = 0;
+        for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
+            const w = d.getDay();
+            if (w !== 0 && w !== 6) n++;
+        }
+        return n;
+    }
+
+    function update() {
+        if (from.value) to.min = from.value;
+        if (!from.value || !to.value) { out.textContent = ''; return; }
+        const a = new Date(from.value), b = new Date(to.value);
+        if (b < a) { out.textContent = 'The end date is before the start date.'; return; }
+        const n = workdays(a, b);
+        out.textContent = n + ' working day' + (n === 1 ? '' : 's') + ' (weekends are not counted).';
+    }
+
+    from.addEventListener('change', () => { if (!to.value || to.value < from.value) to.value = from.value; update(); });
+    to.addEventListener('change', update);
+})();
+</script>
+}

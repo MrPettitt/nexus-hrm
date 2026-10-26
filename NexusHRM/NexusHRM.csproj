@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>NexusHRM</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- ClosedXML: generates proper .xlsx files with formatted tables -->
+    <PackageReference Include="ClosedXML" Version="0.102.2" />
+  </ItemGroup>
+</Project>
